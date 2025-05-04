@@ -9,3 +9,5 @@ pillow
 numpy
 python-telegram-bot==20.0
 pytz
+firebase-admin
+openai
