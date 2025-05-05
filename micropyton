@@ -1,0 +1,85 @@
+import network
+import urequests
+import machine
+import time
+import dht
+
+# ====== SETUP WIFI ======
+SSID = 'moonstar'
+PASSWORD = '17072005'
+
+def connect_wifi():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    if not wlan.isconnected():
+        print('Menghubungkan ke WiFi...')
+        wlan.connect(SSID, PASSWORD)
+        while not wlan.isconnected():
+            time.sleep(1)
+    print('Terhubung ke WiFi:', wlan.ifconfig())
+
+connect_wifi()
+
+# ====== SETUP SENSOR GAS ======
+mq2 = machine.ADC(machine.Pin(35))    # MQ2 di GPIO35
+mq135 = machine.ADC(machine.Pin(32))  # MQ135 di GPIO32
+
+mq2.atten(machine.ADC.ATTN_11DB)
+mq135.atten(machine.ADC.ATTN_11DB)
+
+# ====== SETUP SENSOR DHT11 ======
+dht_sensor = dht.DHT11(machine.Pin(13))  # DHT11 di GPIO13
+
+# ====== SETUP LED ======
+led_merah = machine.Pin(14, machine.Pin.OUT)    # LED Merah di GPIO14
+led_kuning = machine.Pin(15, machine.Pin.OUT)   # LED Kuning di GPIO15
+led_hijau = machine.Pin(4, machine.Pin.OUT)     # LED Hijau di GPIO4
+
+# ====== FIREBASE URL ======
+firebase_url = "https://asap-99106-default-rtdb.asia-southeast1.firebasedatabase.app/sensor.json"
+
+# ====== LOOP UTAMA ======
+while True:
+    try:
+        # Baca sensor gas
+        nilai_mq2 = mq2.read()
+        nilai_mq135 = mq135.read()
+        asap = (nilai_mq2 + nilai_mq135) // 2
+
+        # Baca sensor DHT11
+        dht_sensor.measure()
+        suhu = dht_sensor.temperature()
+        kelembapan = dht_sensor.humidity()
+
+        # Buat data JSON
+        data = {
+            "mq2": nilai_mq2,
+            "mq135": nilai_mq135,
+            "asap": asap,
+            "suhu": suhu,
+            "kelembapan": kelembapan
+        }
+
+        # Kirim data ke Firebase
+        res = urequests.put(firebase_url, json=data)
+        print("Data terkirim:", data)
+        res.close()
+
+        # ====== KONTROL LED ======
+        led_merah.off()
+        led_kuning.off()
+        led_hijau.off()
+
+        if asap < 1000:
+            led_hijau.on()
+        elif asap < 1200:
+            led_kuning.on()
+        else:
+            led_merah.on()
+
+    except Exception as e:
+        print("Gagal:", e)
+
+    time.sleep(5)  # Kirim data setiap 5 detik
+
+
